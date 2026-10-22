@@ -59,6 +59,9 @@ data/vector_db/*
 *.txt
 *.pptx
 *.epub
+# Explicitly allow requirements.txt
+!requirements.txt
+!backend/requirements.txt
 # Allow only safe synthetic test fixtures
 !backend/tests/fixtures/*.pdf
 

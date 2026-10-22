@@ -1,0 +1,18 @@
+# StudyLens AI - Backend Dependencies
+# Pinned versions updated to latest secure releases
+
+fastapi==0.159.1
+uvicorn[standard]==0.54.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.3.0
+sqlalchemy==2.0.36
+argon2-cffi==23.1.0
+pyjwt==2.15.1
+cryptography==50.0.2
+pypdf==6.21.2
+python-multipart==0.0.32
+pytest==9.1.1
+httpx==0.28.1
+requests==2.34.2
+bandit==1.8.0
