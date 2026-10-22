@@ -1,7 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Layers, RotateCcw, ChevronLeft, ChevronRight, Check, X, Sparkles, BookOpen, Shuffle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Layers,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  RotateCw,
+  Sparkles,
+  BookOpen,
+  Shuffle,
+  Keyboard,
+} from 'lucide-react';
 import { Document, FlashcardItem } from '../types';
 import { api } from '../services/api';
+import { EmptyState } from './EmptyState';
 
 interface FlashcardsViewProps {
   document: Document | null;
@@ -9,7 +20,11 @@ interface FlashcardsViewProps {
   onError: (msg: string) => void;
 }
 
-export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ document, onSelectPage, onError }) => {
+export const FlashcardsView: React.FC<FlashcardsViewProps> = ({
+  document,
+  onSelectPage,
+  onError,
+}) => {
   const [cards, setCards] = useState<FlashcardItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -39,170 +54,253 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ document, onSele
     }
   };
 
-  const currentCard = cards[currentIndex];
-
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
+    if (cards.length === 0) return;
     setIsFlipped(false);
     setCurrentIndex((prev) => (prev + 1) % cards.length);
-  };
+  }, [cards.length]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
+    if (cards.length === 0) return;
     setIsFlipped(false);
     setCurrentIndex((prev) => (prev - 1 + cards.length) % cards.length);
-  };
+  }, [cards.length]);
 
   const handleShuffle = () => {
+    if (cards.length === 0) return;
     setIsFlipped(false);
     const shuffled = [...cards].sort(() => Math.random() - 0.5);
     setCards(shuffled);
     setCurrentIndex(0);
   };
 
-  const toggleMastered = (cardId: string) => {
-    setMasteredIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(cardId)) {
-        next.delete(cardId);
-      } else {
-        next.add(cardId);
+  const toggleMastered = useCallback(
+    (cardId: string) => {
+      setMasteredIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(cardId)) {
+          next.delete(cardId);
+        } else {
+          next.add(cardId);
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  const currentCard = cards[currentIndex];
+
+  // Keyboard Navigation: Space/Enter (flip), Left/Right (nav), M (mastered)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't capture when typing in an input or textarea
+      if (
+        document &&
+        (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)
+      ) {
+        return;
       }
-      return next;
-    });
-  };
+
+      if (e.code === 'Space' || e.key === 'Enter') {
+        e.preventDefault();
+        setIsFlipped((f) => !f);
+      } else if (e.key === 'ArrowRight' || e.key === 'j') {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === 'ArrowLeft' || e.key === 'k') {
+        e.preventDefault();
+        handlePrev();
+      } else if ((e.key === 'm' || e.key === 'M') && currentCard) {
+        e.preventDefault();
+        toggleMastered(currentCard.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleNext, handlePrev, currentCard, toggleMastered]);
 
   if (!document) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-8 text-center text-slate-500 bg-slate-900/60 rounded-2xl border border-slate-800">
-        <Layers className="w-12 h-12 text-slate-700 mb-3" />
-        <h4 className="text-base font-semibold text-slate-300">No Document Selected</h4>
-        <p className="text-xs text-slate-400 mt-1 max-w-xs">
-          Select an uploaded document to study interactive flashcards with verifiable page citations.
-        </p>
+      <div className="h-full flex items-center justify-center p-6 bg-white rounded-2xl border border-paper-300 shadow-subtle">
+        <EmptyState
+          type="no-selection"
+          title="No document selected"
+          description="Choose a document from your library to generate active recall flashcards with verified page citations."
+        />
       </div>
     );
   }
 
+  const masteryPercentage =
+    cards.length > 0 ? Math.round((masteredIds.size / cards.length) * 100) : 0;
+
   return (
-    <div className="h-full flex flex-col bg-slate-900/60 rounded-2xl border border-slate-800 overflow-hidden">
-      {/* Top Header */}
-      <div className="p-4 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30">
-            <Sparkles className="w-4 h-4" />
+    <div className="h-full flex flex-col bg-white rounded-2xl border border-paper-300 shadow-subtle overflow-hidden">
+      {/* Top Studio Bar */}
+      <div className="px-6 py-4 border-b border-paper-200 bg-paper-50 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-accent-light text-accent flex items-center justify-center border border-accent/20">
+            <Layers className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xs font-bold text-slate-100">StudyLens Flashcards</h3>
-            <p className="text-[10px] text-slate-400">
-              {cards.length} cards · {masteredIds.size} mastered
+            <h3 className="text-sm font-semibold text-ink-900 tracking-tight">
+              Active Recall Flashcards
+            </h3>
+            <p className="text-xs text-ink-500 font-mono">
+              {cards.length} cards · {masteredIds.size} mastered ({masteryPercentage}%)
             </p>
           </div>
         </div>
 
-        {cards.length > 0 && (
+        <div className="flex items-center gap-2">
+          {cards.length > 0 && (
+            <button
+              onClick={handleShuffle}
+              className="p-1.5 rounded-lg text-ink-500 hover:text-ink-800 hover:bg-paper-200/70 text-xs flex items-center gap-1.5 transition-colors"
+              title="Shuffle Cards"
+            >
+              <Shuffle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline text-xs">Shuffle</span>
+            </button>
+          )}
+
           <button
-            onClick={handleShuffle}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800 text-xs flex items-center gap-1 transition-colors"
-            title="Shuffle Flashcards"
+            onClick={() => loadFlashcards(document.id)}
+            disabled={isLoading}
+            className="p-1.5 rounded-lg text-ink-500 hover:text-accent hover:bg-paper-200/70 text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+            title="Regenerate Flashcards"
           >
-            <Shuffle className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-[11px]">Shuffle</span>
+            <RotateCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline text-xs">Reset</span>
           </button>
-        )}
+        </div>
       </div>
 
       {/* Main Flashcard Arena */}
       <div className="flex-1 p-6 flex flex-col items-center justify-center overflow-y-auto">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center gap-3 text-slate-400">
-            <span className="w-8 h-8 border-2 border-sky-400/30 border-t-sky-400 rounded-full animate-spin" />
-            <p className="text-xs">Generating study flashcards with page references...</p>
+          <div className="flex flex-col items-center justify-center gap-3 text-ink-500">
+            <span className="w-7 h-7 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+            <p className="text-xs font-medium text-ink-600">
+              Generating active recall cards from document passages...
+            </p>
           </div>
         ) : cards.length > 0 && currentCard ? (
-          <div className="w-full max-w-md flex flex-col items-center gap-6">
-            {/* Progress indicator */}
-            <div className="w-full flex items-center justify-between text-xs text-slate-400">
-              <span className="font-semibold">
-                Card {currentIndex + 1} of {cards.length}
-              </span>
-              <span className="text-[11px] text-emerald-400">
-                {Math.round((masteredIds.size / cards.length) * 100)}% Mastered
-              </span>
-            </div>
-            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden -mt-3">
-              <div
-                className="h-full bg-emerald-500 transition-all duration-300"
-                style={{ width: `${(masteredIds.size / cards.length) * 100}%` }}
-              />
+          <div className="w-full max-w-lg flex flex-col items-center gap-5">
+            {/* Progress Bar & Counter */}
+            <div className="w-full space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-mono text-ink-500">
+                <span className="font-semibold text-ink-700">
+                  Card {currentIndex + 1} of {cards.length}
+                </span>
+                <span
+                  className={
+                    masteredIds.has(currentCard.id)
+                      ? 'text-sage font-medium'
+                      : 'text-ink-400'
+                  }
+                >
+                  {masteredIds.has(currentCard.id) ? '✓ Mastered' : 'Unmastered'}
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-paper-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-accent transition-all duration-300"
+                  style={{ width: `${((currentIndex + 1) / cards.length) * 100}%` }}
+                />
+              </div>
             </div>
 
             {/* 3D Flip Card Container */}
             <div
               onClick={() => setIsFlipped(!isFlipped)}
-              className="w-full h-72 cursor-pointer perspective-1000 select-none"
+              className="w-full h-72 cursor-pointer perspective-1000 select-none group"
+              role="button"
+              tabIndex={0}
+              aria-label={
+                isFlipped
+                  ? `Answer: ${currentCard.answer}`
+                  : `Question: ${currentCard.question}. Press Space to reveal answer.`
+              }
             >
               <div
                 className={`w-full h-full relative duration-500 transform-style-preserve-3d transition-transform ${
                   isFlipped ? 'rotate-y-180' : ''
                 }`}
               >
-                {/* Front Side (Question) */}
-                <div className="absolute inset-0 backface-hidden p-8 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-700/80 shadow-2xl flex flex-col justify-between">
+                {/* Front Side: Question */}
+                <div className="absolute inset-0 backface-hidden p-7 rounded-2xl bg-paper-50 border border-paper-300 shadow-md flex flex-col justify-between group-hover:border-accent/40 transition-colors">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20">
-                      Question
+                    <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-accent px-2 py-0.5 rounded bg-accent-light border border-accent/20">
+                      Prompt
                     </span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelectPage(currentCard.page_number);
                       }}
-                      className="text-[11px] text-slate-400 hover:text-sky-300 flex items-center gap-1"
+                      className="text-xs font-mono text-ink-500 hover:text-accent flex items-center gap-1.5 px-2 py-1 rounded bg-white border border-paper-200 transition-colors"
+                      title={`Jump to Page ${currentCard.page_number}`}
                     >
-                      <BookOpen className="w-3.5 h-3.5" />
-                      Page {currentCard.page_number}
+                      <BookOpen className="w-3.5 h-3.5 text-accent" />
+                      <span>Page {currentCard.page_number}</span>
                     </button>
                   </div>
 
-                  <p className="text-base sm:text-lg font-semibold text-slate-100 text-center leading-snug">
-                    {currentCard.question}
-                  </p>
+                  <div className="my-auto text-center px-4">
+                    <p className="text-base sm:text-lg font-serif font-semibold text-ink-900 leading-snug">
+                      {currentCard.question}
+                    </p>
+                  </div>
 
-                  <div className="text-center text-[11px] text-slate-500">Click card to reveal answer ↺</div>
+                  <div className="text-center text-[11px] text-ink-400 font-mono flex items-center justify-center gap-1.5">
+                    <RotateCw className="w-3 h-3 text-ink-300" />
+                    <span>Click or press <kbd className="px-1.5 py-0.5 rounded bg-paper-200 text-ink-600 font-mono text-[10px] border border-paper-300">Space</kbd> to flip</span>
+                  </div>
                 </div>
 
-                {/* Back Side (Answer) */}
-                <div className="absolute inset-0 backface-hidden rotate-y-180 p-8 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/40 border border-indigo-500/40 shadow-2xl flex flex-col justify-between">
+                {/* Back Side: Answer */}
+                <div className="absolute inset-0 backface-hidden rotate-y-180 p-7 rounded-2xl bg-white border border-accent/40 shadow-card flex flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20">
-                      Answer
+                    <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-sage-dark px-2 py-0.5 rounded bg-sage-light border border-sage/20">
+                      Answer & Source
                     </span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelectPage(currentCard.page_number);
                       }}
-                      className="text-[11px] text-sky-400 hover:underline flex items-center gap-1 font-mono font-semibold"
+                      className="text-xs font-mono text-accent hover:underline flex items-center gap-1.5 font-semibold px-2 py-1 rounded bg-accent-light/50 border border-accent/20"
+                      title={`Jump to Page ${currentCard.page_number}`}
                     >
                       <BookOpen className="w-3.5 h-3.5" />
-                      Page {currentCard.page_number}
+                      <span>Grounded on Page {currentCard.page_number}</span>
                     </button>
                   </div>
 
-                  <p className="text-sm sm:text-base font-serif text-slate-200 text-center leading-relaxed">
-                    {currentCard.answer}
-                  </p>
+                  <div className="my-auto text-center px-4">
+                    <p className="text-sm sm:text-base font-serif text-ink-900 leading-relaxed">
+                      {currentCard.answer}
+                    </p>
+                  </div>
 
-                  <div className="text-center text-[11px] text-slate-500">Click to flip back ↻</div>
+                  <div className="text-center text-[11px] text-ink-400 font-mono flex items-center justify-center gap-1.5">
+                    <RotateCw className="w-3 h-3 text-ink-300" />
+                    <span>Click or press <kbd className="px-1.5 py-0.5 rounded bg-paper-200 text-ink-600 font-mono text-[10px] border border-paper-300">Space</kbd> to return</span>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Navigation & Mastery Controls */}
-            <div className="flex items-center justify-between w-full">
+            <div className="flex items-center justify-between w-full pt-1">
               <button
                 onClick={handlePrev}
-                className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors"
-                title="Previous Card"
+                className="p-2.5 rounded-xl bg-white hover:bg-paper-50 border border-paper-300 text-ink-700 hover:text-ink-900 transition-colors shadow-subtle hover-subtle-lift"
+                title="Previous Card (Left Arrow / K)"
+                aria-label="Previous Flashcard"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
@@ -211,25 +309,41 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ document, onSele
                 onClick={() => toggleMastered(currentCard.id)}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 border transition-all ${
                   masteredIds.has(currentCard.id)
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-md shadow-emerald-500/10'
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700'
+                    ? 'bg-sage-light text-sage-dark border-sage/40 shadow-sm'
+                    : 'bg-white text-ink-600 border-paper-300 hover:border-paper-400 hover:text-ink-900'
                 }`}
+                title="Mark as Mastered (M key)"
               >
                 <Check className="w-4 h-4" />
                 <span>{masteredIds.has(currentCard.id) ? 'Mastered!' : 'Mark as Mastered'}</span>
+                <kbd className="hidden sm:inline ml-1 px-1 py-0.5 rounded bg-paper-100 text-[10px] font-mono border border-paper-200">
+                  M
+                </kbd>
               </button>
 
               <button
                 onClick={handleNext}
-                className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors"
-                title="Next Card"
+                className="p-2.5 rounded-xl bg-white hover:bg-paper-50 border border-paper-300 text-ink-700 hover:text-ink-900 transition-colors shadow-subtle hover-subtle-lift"
+                title="Next Card (Right Arrow / J)"
+                aria-label="Next Flashcard"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Keyboard Shortcuts Hint */}
+            <div className="hidden sm:flex items-center gap-3 text-[11px] font-mono text-ink-400 pt-2">
+              <span className="flex items-center gap-1">
+                <Keyboard className="w-3 h-3 text-ink-400" />
+                <span>Shortcuts:</span>
+              </span>
+              <span><kbd className="px-1 rounded bg-paper-100 border border-paper-200">Space</kbd> Flip</span>
+              <span><kbd className="px-1 rounded bg-paper-100 border border-paper-200">←</kbd> <kbd className="px-1 rounded bg-paper-100 border border-paper-200">→</kbd> Nav</span>
+              <span><kbd className="px-1 rounded bg-paper-100 border border-paper-200">M</kbd> Master</span>
+            </div>
           </div>
         ) : (
-          <div className="text-center py-12 text-slate-500">
+          <div className="text-center py-12 text-ink-400">
             <p className="text-sm">No flashcards could be generated for this document.</p>
           </div>
         )}

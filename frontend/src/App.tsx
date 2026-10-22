@@ -5,9 +5,11 @@ import {
   Layers,
   Award,
   BookOpen,
+  FolderOpen,
   UploadCloud,
   ShieldCheck,
   ChevronRight,
+  Info,
 } from 'lucide-react';
 import { User, Document, StudyMode } from './types';
 import { api } from './services/api';
@@ -20,7 +22,7 @@ import { ChatTutor } from './components/ChatTutor';
 import { SummaryView } from './components/SummaryView';
 import { FlashcardsView } from './components/FlashcardsView';
 import { QuizView } from './components/QuizView';
-import { Toast, ToastProps } from './components/Toast';
+import { Toast } from './components/Toast';
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -30,7 +32,8 @@ export const App: React.FC = () => {
   const [activeMode, setActiveMode] = useState<StudyMode>('chat');
   const [targetPage, setTargetPage] = useState<number | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [leftTab, setLeftTab] = useState<'preview' | 'documents'>('preview');
+  const [leftTab, setLeftTab] = useState<'preview' | 'library'>('preview');
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 
   // Load current user profile on startup
   useEffect(() => {
@@ -77,7 +80,7 @@ export const App: React.FC = () => {
     setCurrentUser(user);
     loadDocuments();
     setToast({
-      message: `Welcome, ${user.name}! Authenticated with Argon2id.`,
+      message: `Welcome back, ${user.name}! Workspace unlocked.`,
       type: 'success',
     });
   };
@@ -88,7 +91,7 @@ export const App: React.FC = () => {
     setDocuments([]);
     setSelectedDocument(null);
     setToast({
-      message: 'Successfully logged out. Access token has been revoked.',
+      message: 'Successfully signed out. Access token invalidated.',
       type: 'info',
     });
   };
@@ -98,7 +101,7 @@ export const App: React.FC = () => {
     setSelectedDocument(newDoc);
     setLeftTab('preview');
     setToast({
-      message: `"${newDoc.title}" uploaded and indexed successfully!`,
+      message: `"${newDoc.title}" indexed and ready for study!`,
       type: 'success',
     });
   };
@@ -112,7 +115,7 @@ export const App: React.FC = () => {
         setSelectedDocument(remaining.length > 0 ? remaining[0] : null);
       }
       setToast({
-        message: 'Document and vector records deleted successfully.',
+        message: 'Document and vector embeddings deleted permanently.',
         type: 'success',
       });
     } catch (err: any) {
@@ -128,90 +131,145 @@ export const App: React.FC = () => {
     setLeftTab('preview');
   };
 
+  const handleAskSummaryQuestion = (question: string) => {
+    setPendingQuestion(question);
+    setActiveMode('chat');
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans">
-      {/* Top Navbar */}
+    <div className="min-h-screen flex flex-col bg-paper-100 text-ink-900 font-sans selection:bg-accent-light selection:text-ink-900">
+      {/* Top Editorial Navbar */}
       <Navbar
         user={currentUser}
+        selectedDocument={selectedDocument}
+        activeMode={activeMode}
+        onSelectMode={setActiveMode}
+        onOpenUpload={() => setLeftTab('library')}
         onOpenAuth={() => setIsAuthOpen(true)}
         onLogout={handleLogout}
       />
 
-      {/* Main Workspace Layout */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
-        {/* If user is not logged in banner */}
+      {/* Mobile/Tablet Segmented Study Mode Switcher (Visible when top navbar switcher is hidden) */}
+      <div className="lg:hidden bg-white border-b border-paper-300 px-4 py-2">
+        <div className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-paper-100 border border-paper-300">
+          <button
+            onClick={() => setActiveMode('chat')}
+            className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              activeMode === 'chat'
+                ? 'bg-white text-accent font-semibold shadow-subtle'
+                : 'text-ink-600 hover:text-ink-900'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Chat</span>
+          </button>
+          <button
+            onClick={() => setActiveMode('summary')}
+            className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              activeMode === 'summary'
+                ? 'bg-white text-accent font-semibold shadow-subtle'
+                : 'text-ink-600 hover:text-ink-900'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Summary</span>
+          </button>
+          <button
+            onClick={() => setActiveMode('flashcards')}
+            className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              activeMode === 'flashcards'
+                ? 'bg-white text-accent font-semibold shadow-subtle'
+                : 'text-ink-600 hover:text-ink-900'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Cards</span>
+          </button>
+          <button
+            onClick={() => setActiveMode('quiz')}
+            className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              activeMode === 'quiz'
+                ? 'bg-white text-accent font-semibold shadow-subtle'
+                : 'text-ink-600 hover:text-ink-900'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Quiz</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Studio Workspace */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-6 flex flex-col gap-5">
+        {/* Guest Session Notice */}
         {!currentUser && (
-          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-sky-950/60 to-indigo-950/60 border border-sky-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+          <div className="p-4 rounded-2xl bg-white border border-paper-300 shadow-subtle flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
-                <ShieldCheck className="w-6 h-6" />
+              <div className="w-9 h-9 rounded-xl bg-accent-light text-accent flex items-center justify-center border border-accent/20 flex-shrink-0">
+                <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Guest Session Mode</h3>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  Sign in or create a student account to save notes, isolate private study files, and track learning progress.
+                <h3 className="text-xs sm:text-sm font-semibold text-ink-900">
+                  Guest Workspace Mode
+                </h3>
+                <p className="text-xs text-ink-500 mt-0.5">
+                  Sign in or create an account to persist documents, save question histories, and maintain isolated vector collections.
                 </p>
               </div>
             </div>
             <button
               onClick={() => setIsAuthOpen(true)}
-              className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-lg shadow-sky-600/20 flex-shrink-0"
+              className="px-4 py-2 rounded-xl bg-accent hover:bg-accent-hover text-white text-xs font-semibold shadow-subtle hover-subtle-lift transition-all flex-shrink-0"
             >
-              Sign In / Register
+              Sign In or Register
             </button>
           </div>
         )}
 
-        {/* 2-Column Split Workspace */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[640px]">
-          {/* Left Column (5 Cols on Large screens): Upload, Document List & PDF Page Preview */}
-          <div className="lg:col-span-5 flex flex-col gap-4">
-            {/* Upload Zone */}
-            {currentUser && (
-              <DocumentUpload
-                onUploadSuccess={handleUploadSuccess}
-                onError={(msg) => setToast({ message: msg, type: 'error' })}
-              />
-            )}
-
-            {/* Left Tabs (Preview vs Documents) */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <div className="flex items-center gap-2">
+        {/* 2-Column Split Studio Workspace */}
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[660px]">
+          {/* Left Column (5 Cols): Reader / Library */}
+          <div className="lg:col-span-5 flex flex-col gap-3 min-h-[500px]">
+            {/* Left Column Subheader Tabs */}
+            <div className="flex items-center justify-between bg-white p-1 rounded-xl border border-paper-300 shadow-subtle">
+              <div className="flex items-center gap-1">
                 <button
                   onClick={() => setLeftTab('preview')}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     leftTab === 'preview'
-                      ? 'bg-slate-800 text-sky-400 border border-slate-700'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-paper-100 text-ink-900 font-semibold shadow-subtle'
+                      : 'text-ink-500 hover:text-ink-800'
                   }`}
                 >
-                  Document Viewer
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Reader</span>
                 </button>
                 <button
-                  onClick={() => setLeftTab('documents')}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-all ${
-                    leftTab === 'documents'
-                      ? 'bg-slate-800 text-sky-400 border border-slate-700'
-                      : 'text-slate-400 hover:text-slate-200'
+                  onClick={() => setLeftTab('library')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    leftTab === 'library'
+                      ? 'bg-paper-100 text-ink-900 font-semibold shadow-subtle'
+                      : 'text-ink-500 hover:text-ink-800'
                   }`}
                 >
-                  My Documents ({documents.length})
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>Library ({documents.length})</span>
                 </button>
               </div>
 
               {selectedDocument && leftTab === 'preview' && (
                 <button
-                  onClick={() => setLeftTab('documents')}
-                  className="text-[11px] text-slate-400 hover:text-sky-300 flex items-center gap-1"
+                  onClick={() => setLeftTab('library')}
+                  className="text-xs text-ink-500 hover:text-accent flex items-center gap-1 pr-2 transition-colors font-medium"
                 >
-                  <span>Switch Doc</span>
+                  <span>Switch</span>
                   <ChevronRight className="w-3 h-3" />
                 </button>
               )}
             </div>
 
-            {/* Left Content Area */}
-            <div className="flex-1 min-h-[460px]">
+            {/* Left Content Body */}
+            <div className="flex-1 flex flex-col">
               {leftTab === 'preview' ? (
                 <PdfPreview
                   document={selectedDocument}
@@ -219,108 +277,64 @@ export const App: React.FC = () => {
                   onPageChange={(page) => setTargetPage(page)}
                 />
               ) : (
-                <DocumentList
-                  documents={documents}
-                  selectedDocumentId={selectedDocument?.id || null}
-                  onSelectDocument={(doc) => {
-                    setSelectedDocument(doc);
-                    setLeftTab('preview');
-                  }}
-                  onDeleteDocument={handleDeleteDocument}
-                />
+                <div className="flex flex-col gap-4 h-full">
+                  {currentUser && (
+                    <DocumentUpload
+                      onUploadSuccess={handleUploadSuccess}
+                      onError={(msg) => setToast({ message: msg, type: 'error' })}
+                    />
+                  )}
+                  <div className="flex-1 min-h-[380px]">
+                    <DocumentList
+                      documents={documents}
+                      selectedDocumentId={selectedDocument?.id || null}
+                      onSelectDocument={(doc) => {
+                        setSelectedDocument(doc);
+                        setLeftTab('preview');
+                      }}
+                      onDeleteDocument={handleDeleteDocument}
+                    />
+                  </div>
+                </div>
               )}
             </div>
           </div>
 
-          {/* Right Column (7 Cols on Large screens): Interactive AI Studio & Modes */}
-          <div className="lg:col-span-7 flex flex-col gap-4">
-            {/* Study Mode Selector Pills */}
-            <div className="flex items-center gap-2 p-1.5 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-x-auto">
-              <button
-                onClick={() => setActiveMode('chat')}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeMode === 'chat'
-                    ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>AI Tutor Chat</span>
-              </button>
+          {/* Right Column (7 Cols): Active Study Studio */}
+          <div className="lg:col-span-7 flex flex-col min-h-[500px]">
+            {activeMode === 'chat' && (
+              <ChatTutor
+                document={selectedDocument}
+                onSelectPage={handleSelectPage}
+                onError={(msg) => setToast({ message: msg, type: 'error' })}
+                initialQuestion={pendingQuestion}
+                onClearInitialQuestion={() => setPendingQuestion(null)}
+              />
+            )}
 
-              <button
-                onClick={() => setActiveMode('summary')}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeMode === 'summary'
-                    ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-                <span>Summary & Takeaways</span>
-              </button>
+            {activeMode === 'summary' && (
+              <SummaryView
+                document={selectedDocument}
+                onAskQuestion={handleAskSummaryQuestion}
+                onError={(msg) => setToast({ message: msg, type: 'error' })}
+              />
+            )}
 
-              <button
-                onClick={() => setActiveMode('flashcards')}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeMode === 'flashcards'
-                    ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Layers className="w-4 h-4" />
-                <span>Flashcard Studio</span>
-              </button>
+            {activeMode === 'flashcards' && (
+              <FlashcardsView
+                document={selectedDocument}
+                onSelectPage={handleSelectPage}
+                onError={(msg) => setToast({ message: msg, type: 'error' })}
+              />
+            )}
 
-              <button
-                onClick={() => setActiveMode('quiz')}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeMode === 'quiz'
-                    ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Award className="w-4 h-4" />
-                <span>Practice Quiz</span>
-              </button>
-            </div>
-
-            {/* Active Study View */}
-            <div className="flex-1 min-h-[500px]">
-              {activeMode === 'chat' && (
-                <ChatTutor
-                  document={selectedDocument}
-                  onSelectPage={handleSelectPage}
-                  onError={(msg) => setToast({ message: msg, type: 'error' })}
-                />
-              )}
-
-              {activeMode === 'summary' && (
-                <SummaryView
-                  document={selectedDocument}
-                  onAskQuestion={(q) => {
-                    setActiveMode('chat');
-                  }}
-                  onError={(msg) => setToast({ message: msg, type: 'error' })}
-                />
-              )}
-
-              {activeMode === 'flashcards' && (
-                <FlashcardsView
-                  document={selectedDocument}
-                  onSelectPage={handleSelectPage}
-                  onError={(msg) => setToast({ message: msg, type: 'error' })}
-                />
-              )}
-
-              {activeMode === 'quiz' && (
-                <QuizView
-                  document={selectedDocument}
-                  onSelectPage={handleSelectPage}
-                  onError={(msg) => setToast({ message: msg, type: 'error' })}
-                />
-              )}
-            </div>
+            {activeMode === 'quiz' && (
+              <QuizView
+                document={selectedDocument}
+                onSelectPage={handleSelectPage}
+                onError={(msg) => setToast({ message: msg, type: 'error' })}
+              />
+            )}
           </div>
         </div>
       </main>

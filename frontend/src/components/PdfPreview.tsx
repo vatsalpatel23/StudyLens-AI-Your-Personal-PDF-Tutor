@@ -1,7 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, BookOpen, Download, Search, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  Download,
+  Search,
+  ZoomIn,
+  ZoomOut,
+  Sparkles,
+  Layers,
+  Hash,
+} from 'lucide-react';
 import { Document, DocumentChunk } from '../types';
 import { api } from '../services/api';
+import { EmptyState } from './EmptyState';
 
 interface PdfPreviewProps {
   document: Document | null;
@@ -17,7 +29,9 @@ export const PdfPreview: React.FC<PdfPreviewProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [chunks, setChunks] = useState<DocumentChunk[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [fontSizeLevel, setFontSizeLevel] = useState<'normal' | 'large' | 'larger'>('normal');
+  const [highlightPage, setHighlightPage] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (document) {
@@ -31,6 +45,10 @@ export const PdfPreview: React.FC<PdfPreviewProps> = ({
   useEffect(() => {
     if (targetPage && document && targetPage >= 1 && targetPage <= document.page_count) {
       setCurrentPage(targetPage);
+      setHighlightPage(targetPage);
+      // Trigger flash animation
+      const timer = setTimeout(() => setHighlightPage(null), 2000);
+      return () => clearTimeout(timer);
     }
   }, [targetPage, document]);
 
@@ -51,115 +69,163 @@ export const PdfPreview: React.FC<PdfPreviewProps> = ({
     const clamped = Math.max(1, Math.min(page, document.page_count));
     setCurrentPage(clamped);
     onPageChange?.(clamped);
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (!document) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center p-8 text-center text-slate-500 bg-slate-900/40 rounded-2xl border border-slate-800">
-        <BookOpen className="w-12 h-12 text-slate-700 mb-3" />
-        <h4 className="text-base font-semibold text-slate-300">No Document Selected</h4>
-        <p className="text-xs text-slate-400 mt-1 max-w-xs">
-          Select an uploaded document from the left sidebar to preview pages and study side-by-side with your AI tutor.
-        </p>
-      </div>
-    );
+    return <EmptyState type="no-selection" />;
   }
 
   // Filter chunks for current page
   const pageChunks = chunks.filter((c) => c.page_number === currentPage);
 
+  const fontClass = {
+    normal: 'text-sm leading-relaxed',
+    large: 'text-base leading-loose',
+    larger: 'text-lg leading-loose',
+  }[fontSizeLevel];
+
   return (
-    <div className="h-full flex flex-col bg-slate-900/60 rounded-2xl border border-slate-800 overflow-hidden">
-      {/* Top Header */}
-      <div className="p-4 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
-              <BookOpen className="w-4 h-4" />
-            </span>
-            <h3 className="text-sm font-bold text-slate-100 truncate max-w-[240px] sm:max-w-xs" title={document.title}>
+    <div className="h-full flex flex-col bg-white rounded-xl border border-paper-300 shadow-card overflow-hidden">
+      {/* Top Reading Toolbar */}
+      <div className="px-4 py-2.5 border-b border-paper-300 bg-paper-50/70 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-paper-200 border border-paper-300 flex items-center justify-center text-ink-600 flex-shrink-0">
+            <BookOpen className="w-3.5 h-3.5" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-xs font-semibold text-ink-900 truncate max-w-[200px] sm:max-w-xs" title={document.title}>
               {document.title}
             </h3>
+            <p className="text-[10px] text-ink-500">
+              {document.page_count} Pages · Grounded Study Excerpts
+            </p>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            {document.page_count} Pages · Grounded Study Material
-          </p>
         </div>
 
-        {/* Page Nav */}
+        {/* Navigation & Display Controls */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 text-xs">
+          {/* Zoom / Font Size Selector */}
+          <div className="hidden sm:flex items-center rounded-lg bg-white border border-paper-300 p-0.5 text-xs text-ink-600">
+            <button
+              onClick={() => setFontSizeLevel('normal')}
+              className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                fontSizeLevel === 'normal' ? 'bg-paper-200 text-ink-900 font-semibold' : 'hover:text-ink-900'
+              }`}
+              title="Standard Font Size"
+            >
+              A
+            </button>
+            <button
+              onClick={() => setFontSizeLevel('large')}
+              className={`px-2 py-0.5 rounded text-[12px] font-medium transition-colors ${
+                fontSizeLevel === 'large' ? 'bg-paper-200 text-ink-900 font-semibold' : 'hover:text-ink-900'
+              }`}
+              title="Large Font Size"
+            >
+              A+
+            </button>
+          </div>
+
+          {/* Page Navigator */}
+          <div className="flex items-center bg-white border border-paper-300 rounded-lg p-0.5 text-xs text-ink-700 shadow-subtle">
             <button
               onClick={() => setPage(currentPage - 1)}
               disabled={currentPage <= 1}
-              className="p-1 rounded-lg text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400 hover:bg-slate-800 transition-colors"
-              title="Previous Page"
+              aria-label="Previous Page"
+              className="p-1 rounded text-ink-500 hover:text-ink-900 hover:bg-paper-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="px-2 font-semibold text-slate-300">
-              Page {currentPage} of {document.page_count}
+            <span className="px-2 text-xs font-medium font-mono text-ink-800">
+              {currentPage} / {document.page_count}
             </span>
             <button
               onClick={() => setPage(currentPage + 1)}
               disabled={currentPage >= document.page_count}
-              className="p-1 rounded-lg text-slate-400 hover:text-white disabled:opacity-30 disabled:hover:text-slate-400 hover:bg-slate-800 transition-colors"
-              title="Next Page"
+              aria-label="Next Page"
+              className="p-1 rounded text-ink-500 hover:text-ink-900 hover:bg-paper-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
+          {/* Download Original PDF */}
           <a
             href={api.getDocumentDownloadUrl(document.id)}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+            aria-label="Download Original PDF"
+            className="p-1.5 rounded-lg bg-white border border-paper-300 text-ink-600 hover:text-ink-900 hover:bg-paper-100 shadow-subtle transition-colors"
             title="Download Original PDF"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-3.5 h-3.5" />
           </a>
         </div>
       </div>
 
-      {/* Page Content Viewer */}
-      <div className="flex-1 p-6 overflow-y-auto space-y-4">
+      {/* Reading Canvas */}
+      <div ref={containerRef} className="flex-1 p-6 sm:p-8 overflow-y-auto space-y-5 bg-paper-50/30">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-48 text-slate-500 gap-2">
-            <span className="w-6 h-6 border-2 border-sky-400/30 border-t-sky-400 rounded-full animate-spin" />
-            <span className="text-xs">Loading page passages...</span>
+          <div className="flex flex-col items-center justify-center h-56 text-ink-400 gap-2.5">
+            <span className="w-5 h-5 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+            <span className="text-xs">Extracting verified page passages...</span>
           </div>
         ) : pageChunks.length > 0 ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between text-xs text-slate-400 pb-2 border-b border-slate-800/80">
-              <span className="font-semibold text-sky-400 flex items-center gap-1.5">
+          <div className="max-w-2xl mx-auto space-y-6">
+            <div className="flex items-center justify-between text-xs text-ink-500 pb-2 border-b border-paper-300">
+              <span className="font-semibold text-accent flex items-center gap-1.5 font-mono">
                 <Sparkles className="w-3.5 h-3.5" />
-                Verified Text from Page {currentPage}
+                Page {currentPage} Verified Excerpts
               </span>
-              <span>{pageChunks.length} indexed passage(s)</span>
+              <span className="text-[11px] text-ink-400">
+                {pageChunks.length} indexed passage(s)
+              </span>
             </div>
 
-            {pageChunks.map((chunk, idx) => (
-              <div
-                key={chunk.id}
-                className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 text-slate-300 text-xs sm:text-sm leading-relaxed font-serif shadow-inner whitespace-pre-wrap select-text"
-              >
-                {chunk.content}
-              </div>
-            ))}
+            {pageChunks.map((chunk, idx) => {
+              const isFlashed = highlightPage === currentPage;
+              return (
+                <article
+                  key={chunk.id}
+                  className={`p-6 rounded-xl bg-white border border-paper-300 shadow-card transition-all ${
+                    isFlashed ? 'citation-flash' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-paper-200 text-[10px] text-ink-400 font-mono">
+                    <span className="flex items-center gap-1">
+                      <Hash className="w-3 h-3 text-ink-400" />
+                      Passage {chunk.chunk_index + 1}
+                    </span>
+                    <span>~{chunk.token_count} words</span>
+                  </div>
+
+                  <div className={`font-serif text-ink-800 whitespace-pre-wrap select-text ${fontClass}`}>
+                    {chunk.content}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : (
-          <div className="text-center py-12 text-slate-500">
-            <p className="text-sm">No selectable text extracted on Page {currentPage}.</p>
-            <p className="text-xs text-slate-400 mt-1">This page may contain graphical diagrams or formulas.</p>
+          <div className="text-center py-16 text-ink-400 max-w-sm mx-auto">
+            <BookOpen className="w-8 h-8 text-ink-300 mx-auto mb-2.5 stroke-[1.5]" />
+            <p className="text-xs font-medium text-ink-600">No selectable digital text on Page {currentPage}</p>
+            <p className="text-[11px] text-ink-400 mt-1">
+              This page may contain formulas, illustrations, or graphical scans.
+            </p>
           </div>
         )}
       </div>
 
       {/* Footer Info */}
-      <div className="p-3 bg-slate-950/50 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 px-4">
-        <span>Click citation badges in chat to jump directly to source pages</span>
-        <span className="font-mono text-slate-400">SHA256: {document.sha256_hash.substring(0, 10)}...</span>
+      <div className="px-4 py-2 bg-white border-t border-paper-200 flex items-center justify-between text-[11px] text-ink-500">
+        <span className="flex items-center gap-1 text-ink-400">
+          💡 Clicking citations in Chat jumps here directly
+        </span>
+        <span className="font-mono text-ink-400 text-[10px]">
+          SHA256: {document.sha256_hash.substring(0, 10)}...
+        </span>
       </div>
     </div>
   );
