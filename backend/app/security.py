@@ -171,6 +171,12 @@ class SlidingWindowRateLimiter:
         window_start = now - window_seconds
 
         with self._lock:
+            # Periodic memory hygiene: prune inactive keys when tracking table grows
+            if len(self._requests) > 200:
+                dead_keys = [k for k, ts in self._requests.items() if not ts or ts[-1] <= window_start]
+                for k in dead_keys:
+                    del self._requests[k]
+
             # Clean up older timestamps
             timestamps = [t for t in self._requests[client_key] if t > window_start]
             if len(timestamps) >= max_requests:

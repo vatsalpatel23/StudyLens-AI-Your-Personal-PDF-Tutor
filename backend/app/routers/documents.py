@@ -1,5 +1,6 @@
 import os
 import uuid
+import asyncio
 import logging
 from pathlib import Path
 
@@ -17,6 +18,9 @@ from backend.app.pdf_processor import process_and_store_pdf
 from backend.app.vector_store import vector_store
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
+
+# Bounded concurrency semaphore: prevents memory/CPU exhaustion when many concurrent uploads arrive
+upload_semaphore = asyncio.Semaphore(settings.MAX_CONCURRENT_UPLOADS)
 
 
 def get_client_ip(request: Request) -> str:
@@ -50,20 +54,21 @@ async def upload_document(
             detail=f"Upload rate limit exceeded. Please wait {wait_secs} seconds.",
         )
 
-    # Read bytes safely with size check
-    content = await file.read()
-    if len(content) > settings.MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds maximum upload size of {settings.MAX_UPLOAD_SIZE_BYTES // (1024*1024)} MB.",
-        )
+    async with upload_semaphore:
+        # Read bytes safely with size check
+        content = await file.read()
+        if len(content) > settings.MAX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File exceeds maximum upload size of {settings.MAX_UPLOAD_SIZE_BYTES // (1024*1024)} MB.",
+            )
 
-    # Process and validate PDF
-    processed = process_and_store_pdf(
-        user_id=current_user.id,
-        original_filename=file.filename or "uploaded_study_doc.pdf",
-        file_bytes=content,
-    )
+        # Process and validate PDF within bounded concurrency slot
+        processed = process_and_store_pdf(
+            user_id=current_user.id,
+            original_filename=file.filename or "uploaded_study_doc.pdf",
+            file_bytes=content,
+        )
 
     # Create Document record
     new_doc = Document(

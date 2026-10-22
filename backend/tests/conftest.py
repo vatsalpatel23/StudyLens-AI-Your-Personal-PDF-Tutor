@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 
@@ -17,8 +17,18 @@ SQLALCHEMY_DATABASE_URL = f"sqlite:///{TEST_DB_PATH}"
 
 test_engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False, "timeout": 30.0},
 )
+
+@event.listens_for(test_engine, "connect")
+def set_sqlite_pragma_test(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA busy_timeout=30000")
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
 
@@ -61,12 +71,13 @@ def db_session():
 
 
 @pytest.fixture
-def client(db_session):
+def client():
     def override_get_db():
+        db = TestingSessionLocal()
         try:
-            yield db_session
+            yield db
         finally:
-            pass
+            db.close()
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:

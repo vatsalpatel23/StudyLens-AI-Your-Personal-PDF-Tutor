@@ -25,9 +25,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_UPLOAD_PER_MIN: int = Field(default=10)
     RATE_LIMIT_CHAT_PER_MIN: int = Field(default=30)
 
-    # File Upload Security Controls
+    # File Upload Security & Concurrency Controls
     MAX_UPLOAD_SIZE_BYTES: int = Field(default=20 * 1024 * 1024)  # 20 MB
     MAX_PDF_PAGES: int = Field(default=100)                        # 100 pages DoS boundary
+    MAX_CONCURRENT_UPLOADS: int = Field(default=5)                 # Bounded concurrency to protect CPU/RAM
     ALLOWED_MIME_TYPES: str = Field(default="application/pdf")
     STORAGE_DIR: str = Field(default="backend/storage/uploads")
     TEMP_DIR: str = Field(default="backend/storage/temp")

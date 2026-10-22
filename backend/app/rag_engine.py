@@ -1,6 +1,10 @@
 import json
 import logging
 import re
+import time
+import secrets
+import hashlib
+import threading
 from typing import Optional
 import requests
 
@@ -9,6 +13,60 @@ from backend.app.schemas import CitationItem, FlashcardItem, QuizQuestionItem
 from backend.app.vector_store import VectorSearchResult
 
 logger = logging.getLogger("studylens.rag")
+
+
+class RAGQueryCache:
+    """
+    In-memory TTL cache for RAG question-answer pairs with multi-tenant isolation.
+    Cache keys incorporate user_id and document_id so User A can never receive User B's cached answers.
+    Prevents duplicate expensive LLM calls and speeds up concurrent duplicate queries.
+    """
+    def __init__(self, ttl_seconds: int = 600, max_size: int = 500):
+        self._cache: dict[str, tuple[float, str, list[CitationItem]]] = {}
+        self._ttl_seconds = ttl_seconds
+        self._max_size = max_size
+        self._lock = threading.Lock()
+
+    def _make_key(self, user_id: str, document_id: str, query: str) -> str:
+        normalized = re.sub(r"\s+", " ", query.strip().lower())
+        raw = f"{user_id}:{document_id}:{normalized}"
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    def get(self, user_id: str, document_id: str, query: str) -> Optional[tuple[str, list[CitationItem]]]:
+        key = self._make_key(user_id, document_id, query)
+        now = time.time()
+        with self._lock:
+            entry = self._cache.get(key)
+            if entry:
+                timestamp, answer, citations = entry
+                if now - timestamp < self._ttl_seconds:
+                    return answer, citations
+                del self._cache[key]
+        return None
+
+    def set(self, user_id: str, document_id: str, query: str, answer: str, citations: list[CitationItem]):
+        key = self._make_key(user_id, document_id, query)
+        now = time.time()
+        with self._lock:
+            if len(self._cache) >= self._max_size:
+                expired = [k for k, v in self._cache.items() if now - v[0] >= self._ttl_seconds]
+                for k in expired:
+                    del self._cache[k]
+                if len(self._cache) >= self._max_size:
+                    sorted_keys = sorted(self._cache.keys(), key=lambda k: self._cache[k][0])
+                    for k in sorted_keys[: max(1, self._max_size // 10)]:
+                        del self._cache[k]
+            self._cache[key] = (now, answer, citations)
+
+    def invalidate_document(self, document_id: str):
+        """Invalidate all cached questions when document is deleted or modified."""
+        with self._lock:
+            keys_to_del = [k for k in self._cache.keys()]
+            # Clean purge on document deletion
+            self._cache.clear()
+
+
+rag_cache = RAGQueryCache()
 
 
 SYSTEM_PROMPT = """You are StudyLens AI, a specialized and secure academic tutor.
@@ -288,24 +346,43 @@ class GeminiAIProvider(RAGProvider):
             }
         }
 
-        try:
-            response = requests.post(
-                self.endpoint,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=settings.AI_REQUEST_TIMEOUT_SECONDS,
-            )
-            response.raise_for_status()
-            result = response.json()
-            candidates = result.get("candidates", [])
-            if candidates:
-                parts = candidates[0].get("content", {}).get("parts", [])
-                if parts:
-                    return parts[0].get("text", "")
-            return "I was unable to generate a response from the provider."
-        except Exception as exc:
-            logger.error(f"Gemini API request failed: {str(exc)}")
-            raise RuntimeError(f"AI Provider error: {str(exc)}")
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                response = requests.post(
+                    self.endpoint,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=settings.AI_REQUEST_TIMEOUT_SECONDS,
+                )
+                # Retry transient provider errors: 429 (rate limit), 500, 502, 503, 504
+                if response.status_code in (429, 500, 502, 503, 504) and attempt < max_attempts - 1:
+                    sleep_s = min(6.0, (1.5 ** attempt) + secrets.SystemRandom().uniform(0.1, 0.4))
+                    logger.warning(
+                        f"Gemini transient status {response.status_code} (attempt {attempt+1}/{max_attempts}). Retrying in {sleep_s:.2f}s..."
+                    )
+                    time.sleep(sleep_s)
+                    continue
+
+                response.raise_for_status()
+                result = response.json()
+                candidates = result.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return parts[0].get("text", "")
+                return "I was unable to generate a response from the provider."
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                if attempt < max_attempts - 1:
+                    sleep_s = min(6.0, (1.5 ** attempt) + secrets.SystemRandom().uniform(0.1, 0.4))
+                    logger.warning(f"Gemini connection timeout/error. Retrying in {sleep_s:.2f}s... Error: {exc}")
+                    time.sleep(sleep_s)
+                    continue
+                logger.error(f"Gemini API request failed after {max_attempts} attempts: {str(exc)}")
+                raise RuntimeError(f"AI Provider error: {str(exc)}")
+            except Exception as exc:
+                logger.error(f"Gemini API request fatal error: {str(exc)}")
+                raise RuntimeError(f"AI Provider error: {str(exc)}")
 
     def generate_answer(self, query: str, retrieved_chunks: list[VectorSearchResult]) -> tuple[str, list[CitationItem]]:
         if not retrieved_chunks:

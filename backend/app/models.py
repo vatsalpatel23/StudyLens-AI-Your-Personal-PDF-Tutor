@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship
 from backend.app.database import Base
 
@@ -39,6 +39,10 @@ class Document(Base):
     summary = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=get_utc_now, nullable=False)
 
+    __table_args__ = (
+        Index("ix_documents_user_created", "user_id", "created_at"),
+    )
+
     user = relationship("User", back_populates="documents")
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="document", cascade="all, delete-orphan")
@@ -57,6 +61,11 @@ class DocumentChunk(Base):
     content = Column(Text, nullable=False)
     token_count = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime(timezone=True), default=get_utc_now, nullable=False)
+
+    __table_args__ = (
+        Index("ix_chunks_doc_chunk_idx", "document_id", "chunk_index"),
+        Index("ix_chunks_user_doc", "user_id", "document_id"),
+    )
 
     document = relationship("Document", back_populates="chunks")
 
@@ -123,4 +132,4 @@ class TokenBlocklist(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     jti = Column(String(64), unique=True, index=True, nullable=False)
     revoked_at = Column(DateTime(timezone=True), default=get_utc_now, nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
+    expires_at = Column(DateTime(timezone=True), index=True, nullable=False)

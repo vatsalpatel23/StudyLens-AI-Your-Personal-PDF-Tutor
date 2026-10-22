@@ -8,7 +8,7 @@ from backend.app.models import User, Document, ChatSession, ChatMessage
 from backend.app.schemas import ChatSendRequest, ChatMessageResponse, ChatSessionResponse, CitationItem
 from backend.app.security import get_current_user, rate_limiter
 from backend.app.vector_store import vector_store
-from backend.app.rag_engine import get_rag_provider
+from backend.app.rag_engine import get_rag_provider, rag_cache
 
 router = APIRouter(prefix="/api/chat", tags=["RAG Chat"])
 
@@ -80,20 +80,39 @@ def send_chat_message(
         db.commit()
         db.refresh(session)
 
-    # 3. Multi-tenant Isolated Vector Search
+    # 3. Multi-tenant Isolated Vector Search (with automatic cold-start database recovery)
     retrieved_chunks = vector_store.search(
         query=req.message,
         user_id=current_user.id,
         document_id=doc.id,
         top_k=settings.TOP_K_CHUNKS,
         threshold=settings.VECTOR_SIMILARITY_THRESHOLD,
+        db=db,
     )
 
-    # 4. Generate Grounded AI Response with Citation Verification
-    rag = get_rag_provider()
-    assistant_content, valid_citations = rag.generate_answer(
-        query=req.message, retrieved_chunks=retrieved_chunks
+    # 4. Check Query Cache for Identical Questions on Same Document (Tenant-isolated)
+    cached_entry = rag_cache.get(
+        user_id=current_user.id,
+        document_id=doc.id,
+        query=req.message,
     )
+
+    if cached_entry:
+        assistant_content, valid_citations = cached_entry
+    else:
+        # Generate Grounded AI Response with Citation Verification
+        rag = get_rag_provider()
+        assistant_content, valid_citations = rag.generate_answer(
+            query=req.message, retrieved_chunks=retrieved_chunks
+        )
+        # Store in query cache
+        rag_cache.set(
+            user_id=current_user.id,
+            document_id=doc.id,
+            query=req.message,
+            answer=assistant_content,
+            citations=valid_citations,
+        )
 
     # 5. Persist User and Assistant Messages
     user_msg = ChatMessage(

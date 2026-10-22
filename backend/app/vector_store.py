@@ -99,6 +99,43 @@ class InMemoryVectorStore:
         with self._lock:
             self._records[chunk_id] = record
 
+    def has_document_chunks(self, document_id: str, user_id: str) -> bool:
+        """Check if vector store already has records for this document in memory."""
+        with self._lock:
+            return any(
+                r.document_id == document_id and r.user_id == user_id
+                for r in self._records.values()
+            )
+
+    def ensure_document_indexed(self, db, document_id: str, user_id: str) -> int:
+        """
+        Durability & Cold-Start Recovery:
+        If vector records are not resident in memory (e.g. after server restart or container bounce),
+        lazily re-indexes them from the persistent SQLite database.
+        """
+        if self.has_document_chunks(document_id, user_id):
+            return 0
+
+        from backend.app.models import DocumentChunk
+        chunks = (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.document_id == document_id, DocumentChunk.user_id == user_id)
+            .order_by(DocumentChunk.chunk_index.asc())
+            .all()
+        )
+
+        loaded = 0
+        for chunk in chunks:
+            self.add_chunk(
+                chunk_id=chunk.id,
+                document_id=chunk.document_id,
+                user_id=chunk.user_id,
+                page_number=chunk.page_number,
+                content=chunk.content,
+            )
+            loaded += 1
+        return loaded
+
     def search(
         self,
         query: str,
@@ -106,11 +143,15 @@ class InMemoryVectorStore:
         document_id: Optional[str] = None,
         top_k: int = 5,
         threshold: float = 0.15,
+        db: Optional[object] = None,
     ) -> list[VectorSearchResult]:
         """
         Searches chunks with mandatory tenant isolation:
         Only chunks strictly belonging to `user_id` are eligible for scoring and retrieval.
         """
+        if db and document_id:
+            self.ensure_document_indexed(db, document_id, user_id)
+
         query_vec = self._generate_vector(query)
         if not query_vec:
             return []

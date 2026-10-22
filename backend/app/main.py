@@ -4,7 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.config import settings
 from backend.app.database import engine, Base
-from backend.app.middleware import SecurityHeadersMiddleware, SafeErrorHandlingMiddleware
+from backend.app.middleware import (
+    SecurityHeadersMiddleware,
+    SafeErrorHandlingMiddleware,
+    RequestCorrelationMiddleware,
+)
 from backend.app.routers import auth, documents, chat, study, health
 
 
@@ -27,7 +31,10 @@ app = FastAPI(
 # 1. Safe Error Handling Middleware (outermost to catch all exceptions)
 app.add_middleware(SafeErrorHandlingMiddleware)
 
-# 2. OWASP Security Headers Middleware
+# 2. Request Correlation & Observability Middleware (X-Request-ID and latency)
+app.add_middleware(RequestCorrelationMiddleware)
+
+# 3. OWASP Security Headers Middleware
 app.add_middleware(SecurityHeadersMiddleware)
 
 # 3. Explicit CORS Middleware (Strict origins, prevents unauthorized cross-origin requests)

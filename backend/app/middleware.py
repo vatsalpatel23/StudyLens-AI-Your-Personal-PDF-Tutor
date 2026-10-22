@@ -1,4 +1,5 @@
 import uuid
+import time
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -6,6 +7,33 @@ from starlette.responses import Response, JSONResponse
 from backend.app.config import settings
 
 logger = logging.getLogger("studylens.security")
+request_logger = logging.getLogger("studylens.http")
+
+
+class RequestCorrelationMiddleware(BaseHTTPMiddleware):
+    """
+    Assigns an X-Request-ID to all incoming requests, measures response time,
+    and logs request metrics for observability and distributed tracing.
+    """
+    async def dispatch(self, request: Request, call_next):
+        req_id = request.headers.get("X-Request-ID") or request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
+        request.state.request_id = req_id
+        start_time = time.time()
+
+        try:
+            response: Response = await call_next(request)
+        except Exception:
+            raise
+
+        process_time_ms = round((time.time() - start_time) * 1000, 2)
+        response.headers["X-Request-ID"] = req_id
+        response.headers["X-Response-Time-Ms"] = str(process_time_ms)
+
+        # Structured request logging
+        request_logger.info(
+            f"[{req_id[:8]}] {request.method} {request.url.path} -> {response.status_code} ({process_time_ms}ms)"
+        )
+        return response
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
