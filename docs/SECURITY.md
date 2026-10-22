@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary & Realistic Security Stance
 
-No modern software application connected to networks or running large language models can be promised to be 100% "unhackable." Publishing code in a public repository allows external parties to view, audit, and potentially copy source code under the applicable repository license terms (MIT License).
+No modern software application connected to networks or running large language models can be promised to be 100% "unhackable." While publishing code in a public repository allows external parties to view source code, all proprietary rights remain strictly reserved under the project's Proprietary License.
 
 Our security objective for **StudyLens AI** is **Defense-in-Depth**:
 1. Minimizing attack surfaces through strict schema validation and file structure parsing.

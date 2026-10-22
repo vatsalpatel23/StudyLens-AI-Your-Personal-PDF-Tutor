@@ -1,30 +1,25 @@
-MIT License
+Copyright (c) 2026 Vatsal Patel. All Rights Reserved.
 
-Copyright (c) 2026 Vatsal Patel
+PROPRIETARY AND CONFIDENTIAL SOURCE CODE LICENSE
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software, its source code, design architecture, documentation, and associated files (the "Software") are the exclusive proprietary property of Vatsal Patel.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. NO PERMISSION GRANTED:
+No license, right, or permission (express, implied, statutory, or otherwise) is granted to any person or entity to copy, clone, download, reproduce, modify, merge, publish, distribute, sublicense, sell, reverse engineer, decompile, or create derivative works based upon the Software, in whole or in part, without the prior explicit written authorization of the copyright owner.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. PROHIBITION OF UNAUTHORIZED USE:
+Any unauthorized copying, distribution, public display, deployment, commercial exploitation, or incorporation into any other project, product, or service is strictly prohibited and constitutes copyright infringement under applicable national and international intellectual property laws.
+
+3. RESERVATION OF RIGHTS:
+All title, ownership rights, trademarks, patents, and intellectual property rights in and to the Software remain solely and exclusively with Vatsal Patel.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
 ### Third-Party Asset & Dependency Attribution
 
-This project utilizes open-source libraries and frameworks. All dependencies are governed by their respective licenses:
+This application includes open-source third-party dependencies and libraries. All third-party libraries remain governed by their respective open-source licenses:
 
 - **FastAPI**: MIT License (Copyright © Sebastián Ramírez)
 - **SQLAlchemy**: MIT License (Copyright © Michael Bayer)

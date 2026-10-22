@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-6.0-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/License-Proprietary%20%7C%20All%20Rights%20Reserved-red?style=for-the-badge)](LICENSE)
 [![Security](https://img.shields.io/badge/Security-Argon2id%20%7C%20OWASP%20Top%2010-emerald?style=for-the-badge&logo=shield)](docs/SECURITY.md)
 [![Tests](https://img.shields.io/badge/Tests-27%2F27%20PASS%20(100%25)-brightgreen?style=for-the-badge)](docs/TESTING.md)
 
@@ -212,6 +212,8 @@ StudyLens AI adheres to responsible disclosure principles. If you discover a pot
 
 ---
 
-## 📄 License
+## 📄 License & Intellectual Property
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details. Third-party libraries and assets are attributed under their respective open-source licenses.
+Copyright © 2026 Vatsal Patel. All Rights Reserved.
+
+This project is protected by copyright law and licensed under a **Proprietary — All Rights Reserved** license. No permission is granted to copy, reproduce, distribute, sublicense, modify, or commercially exploit this software without the prior explicit written permission of Vatsal Patel. See the [LICENSE](LICENSE) file for complete legal terms. Third-party libraries remain governed by their respective open-source licenses.

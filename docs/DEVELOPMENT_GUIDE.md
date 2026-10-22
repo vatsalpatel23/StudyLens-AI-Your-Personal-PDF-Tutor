@@ -70,7 +70,7 @@ StudyLens AI/
 │   └── package.json                # Frontend dependencies & scripts
 ├── .env.example                    # Sanitized environment variable template
 ├── .gitignore                      # Git exclusion rules
-├── LICENSE                         # MIT License & asset attribution
+├── LICENSE                         # Proprietary License & third-party attribution
 ├── pytest.ini                      # Pytest runner configuration
 ├── README.md                       # Main repository entry point
 └── run_all_tests.py                # Master release gate verification runner
